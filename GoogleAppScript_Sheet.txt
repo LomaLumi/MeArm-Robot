@@ -1,0 +1,90 @@
+function doGet(e) { 
+  Logger.log(JSON.stringify(e));
+  var result = 'Ok';
+  if (!e.parameter) {
+    result = 'No Parameters';
+  }
+  else {
+    var sheet_id = 'your sheet id'; 	// Spreadsheet ID
+    var sheet_name = "MeArm_Google_Sheets_Sheet";  // Sheet Name
+
+    var sheet_open = SpreadsheetApp.openById(sheet_id);
+    var sheet_target = sheet_open.getSheetByName(sheet_name);
+
+    var newRow = sheet_target.getLastRow() + 1;
+    var rowDataLog = [];
+
+    var Data_for_G3, Data_for_H3, Data_for_I3, Data_for_J3, Data_for_K3;
+
+    var sts_val = '';
+    var Curr_X = '';
+    var Curr_Y = '';
+    var Curr_Z = '';
+    var Curr_Analog = '';
+    var Curr_Status = '';
+
+    // อ่านค่าจาก parameter ที่ ESP32 ส่งมา
+    for (var param in e.parameter) {
+      var value = stripQuotes(e.parameter[param]);
+      switch (param) {
+        case 'sts':
+          sts_val = value;
+          break;
+        case 'x':
+          Curr_X = value;
+          break;
+        case 'y':
+          Curr_Y = value;
+          break;
+        case 'z':
+          Curr_Z = value;
+          break;
+        case 'analog':
+          Curr_Analog = value;
+          break;
+        case 'status':
+          Curr_Status = value;
+          break;
+        default:
+          result += ", unsupported parameter";
+      }
+    }
+
+    // เตรียมข้อมูลสำหรับเขียนลงชีท
+    rowDataLog[0] = Curr_X;       // Col A
+    rowDataLog[1] = Curr_Y;       // Col B
+    rowDataLog[2] = Curr_Z;       // Col C
+    rowDataLog[3] = Curr_Analog;  // Col D
+    rowDataLog[4] = Curr_Status;  // Col E
+
+    Data_for_G3 = Curr_X; 
+    Data_for_H3 = Curr_Y; 
+    Data_for_I3 = Curr_Z; 
+    Data_for_J3 = Curr_Analog; 
+    Data_for_K3 = Curr_Status; 
+
+    // ESP32 → Google Sheets
+    if (sts_val == 'write') {
+      // บันทึกลง Data Logger (เพิ่มเรื่อยๆ)
+      Logger.log(JSON.stringify(rowDataLog));
+      var newRangeDataLog = sheet_target.getRange(newRow, 1, 1, rowDataLog.length);
+      newRangeDataLog.setValues([rowDataLog]);
+      
+      // อัปเดต Latest Data (F3:I3)
+      var RangeDataLatest = sheet_target.getRange('G3:K3');
+      RangeDataLatest.setValues([[Data_for_G3, Data_for_H3, Data_for_I3, Data_for_J3, Data_for_K3]]);
+      
+      return ContentService.createTextOutput("Data logged and latest updated");
+    }
+
+    // Google Sheets → ESP32 (ดึงค่าล่าสุดกลับไป)
+    if (sts_val == 'read') {
+      var latestData = sheet_target.getRange('G3:K3').getValues();
+      return ContentService.createTextOutput(JSON.stringify(latestData[0]));
+    }
+  }
+}
+
+function stripQuotes(value) {
+  return value.replace(/^["']|['"]$/g, "");
+}
